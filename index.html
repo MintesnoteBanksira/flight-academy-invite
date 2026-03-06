@@ -387,7 +387,7 @@
         const SUPABASE_URL = 'https://xrmtzzvjjajnwwwedafn.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhybXR6enZqamFqbnd3d2VkYWZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyODA1NzMsImV4cCI6MjA4Nzg1NjU3M30.9m1NtRPhvyBdpuY8KM6o9MqsFi5-rT0ToMLQpzdibBo';
 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const loadingView = document.getElementById('loadingView');
         const formView = document.getElementById('formView');
@@ -483,7 +483,7 @@
             if (accessToken && refreshToken) {
                 try {
                     console.log('Setting session with tokens...');
-                    const { data, error: sessionError } = await supabase.auth.setSession({
+                    const { data, error: sessionError } = await supabaseClient.auth.setSession({
                         access_token: accessToken,
                         refresh_token: refreshToken
                     });
@@ -509,7 +509,7 @@
                 // No tokens in URL - check if there's an existing session
                 console.log('No tokens in URL, checking existing session...');
                 
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
                 
                 if (sessionError) {
                     console.error('Get session error:', sessionError);
@@ -554,7 +554,7 @@
                 console.log('Updating user password...');
                 
                 // Update the user's password
-                const { data, error } = await supabase.auth.updateUser({
+                const { data, error } = await supabaseClient.auth.updateUser({
                     password: password
                 });
 
@@ -567,7 +567,7 @@
                 console.log('Password updated successfully');
 
                 // Sign out so they have to log in via the app
-                await supabase.auth.signOut();
+                await supabaseClient.auth.signOut();
                 console.log('Signed out');
 
                 // Show success
