@@ -101,7 +101,8 @@
             color: rgba(255, 255, 255, 0.8);
         }
 
-        .form-group input {
+        .form-group input,
+        .form-group select {
             width: 100%;
             padding: 14px 16px;
             background: rgba(255, 255, 255, 0.05);
@@ -112,7 +113,8 @@
             transition: all 0.2s ease;
         }
 
-        .form-group input:focus {
+        .form-group input:focus,
+        .form-group select:focus {
             outline: none;
             border-color: #FFC107;
             background: rgba(255, 193, 7, 0.05);
@@ -120,6 +122,32 @@
 
         .form-group input::placeholder {
             color: rgba(255, 255, 255, 0.3);
+        }
+
+        .form-group select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23FFC107' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+        }
+
+        .form-group select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .form-row .form-group.small {
+            flex: 0 0 120px;
         }
 
         .password-requirements {
@@ -337,6 +365,23 @@
                 <div id="errorMessage" class="message"></div>
 
                 <form id="passwordForm">
+                    <div class="form-row">
+                        <div class="form-group small">
+                            <label for="title">Title</label>
+                            <select id="title" required>
+                                <option value="">Select</option>
+                                <option value="Capt.">Capt.</option>
+                                <option value="F/O">F/O</option>
+                                <option value="S/O">S/O</option>
+                                <option value="Instructor">Instructor</option>
+                                <option value="">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="fullName">Full Name</label>
+                            <input type="text" id="fullName" placeholder="Enter your full name" required minlength="2">
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label for="password">Password</label>
                         <input type="password" id="password" placeholder="Enter your password" required minlength="8">
@@ -530,12 +575,19 @@
             e.preventDefault();
             clearFormError();
 
+            const title = document.getElementById('title').value;
+            const fullName = document.getElementById('fullName').value.trim();
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
 
             console.log('Form submitted');
 
             // Validation
+            if (fullName.length < 2) {
+                showFormError('Please enter your full name.');
+                return;
+            }
+
             if (password.length < 8) {
                 showFormError('Password must be at least 8 characters long.');
                 return;
@@ -551,11 +603,15 @@
             submitBtn.innerHTML = '<span class="loading"></span>Creating Account...';
 
             try {
-                console.log('Updating user password...');
+                console.log('Updating user with name and password...');
                 
-                // Update the user's password
+                // Update the user's password and metadata
                 const { data, error } = await supabaseClient.auth.updateUser({
-                    password: password
+                    password: password,
+                    data: {
+                        full_name: fullName,
+                        title: title
+                    }
                 });
 
                 console.log('Update result:', { data, error });
@@ -564,7 +620,7 @@
                     throw error;
                 }
 
-                console.log('Password updated successfully');
+                console.log('User updated successfully');
 
                 // Sign out so they have to log in via the app
                 await supabaseClient.auth.signOut();
@@ -574,8 +630,8 @@
                 showSuccess();
 
             } catch (error) {
-                console.error('Password update error:', error);
-                showFormError(error.message || 'Failed to set password. Please try again.');
+                console.error('Update error:', error);
+                showFormError(error.message || 'Failed to set up account. Please try again.');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = 'Create Account';
             }
