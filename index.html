@@ -153,17 +153,6 @@
             transform: none;
         }
 
-        .btn-secondary {
-            background: transparent;
-            border: 2px solid #FFC107;
-            color: #FFC107;
-            margin-top: 16px;
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 193, 7, 0.1);
-        }
-
         .message {
             padding: 14px 16px;
             border-radius: 12px;
@@ -276,6 +265,38 @@
             stroke: #f87171;
         }
 
+        .loading-view {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        .loading-view .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(255, 193, 7, 0.2);
+            border-radius: 50%;
+            border-top-color: #FFC107;
+            animation: spin 1s ease-in-out infinite;
+            margin: 0 auto 20px;
+        }
+
+        .loading-view p {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .user-email {
+            background: rgba(255, 193, 7, 0.1);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .user-email span {
+            color: #FFC107;
+            font-weight: 500;
+        }
+
         @media (max-width: 480px) {
             .card {
                 padding: 32px 24px;
@@ -296,11 +317,21 @@
                 <p>Instructor Portal</p>
             </div>
 
+            <!-- Loading View -->
+            <div id="loadingView" class="loading-view">
+                <div class="spinner"></div>
+                <p>Processing invitation...</p>
+            </div>
+
             <!-- Password Setup Form -->
-            <div id="formView">
+            <div id="formView" style="display: none;">
                 <div class="form-title">
                     <h2>Set Your Password</h2>
                     <p>Create a secure password to complete your instructor account setup.</p>
+                </div>
+
+                <div id="userEmail" class="user-email" style="display: none;">
+                    Setting up account for: <span id="emailDisplay"></span>
                 </div>
 
                 <div id="errorMessage" class="message"></div>
@@ -345,7 +376,7 @@
                     </svg>
                 </div>
                 <h2>Invalid Link</h2>
-                <p>This invitation link is invalid or has expired. Please contact your administrator for a new invitation.</p>
+                <p id="errorViewText">This invitation link is invalid or has expired. Please contact your administrator for a new invitation.</p>
             </div>
         </div>
     </div>
@@ -358,65 +389,50 @@
 
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        const loadingView = document.getElementById('loadingView');
         const formView = document.getElementById('formView');
         const successView = document.getElementById('successView');
         const errorView = document.getElementById('errorView');
         const passwordForm = document.getElementById('passwordForm');
         const errorMessage = document.getElementById('errorMessage');
         const submitBtn = document.getElementById('submitBtn');
+        const userEmailDiv = document.getElementById('userEmail');
+        const emailDisplay = document.getElementById('emailDisplay');
+        const errorViewText = document.getElementById('errorViewText');
 
-        // Check for token in URL hash (Supabase uses hash-based routing)
-        async function init() {
-            const hashParams = new URLSearchParams(window.location.hash.substring(1));
-            const queryParams = new URLSearchParams(window.location.search);
-            
-            const accessToken = hashParams.get('access_token') || queryParams.get('access_token');
-            const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token');
-            const type = hashParams.get('type') || queryParams.get('type');
-            const error = hashParams.get('error') || queryParams.get('error');
-            const errorDescription = hashParams.get('error_description') || queryParams.get('error_description');
+        let currentUserEmail = '';
 
-            // Check for errors
-            if (error) {
-                showError(errorDescription || 'An error occurred with the invitation link.');
-                return;
-            }
+        function hideAllViews() {
+            loadingView.style.display = 'none';
+            formView.style.display = 'none';
+            successView.style.display = 'none';
+            errorView.style.display = 'none';
+        }
 
-            // If we have tokens, set the session
-            if (accessToken && refreshToken) {
-                try {
-                    const { data, error: sessionError } = await supabase.auth.setSession({
-                        access_token: accessToken,
-                        refresh_token: refreshToken
-                    });
+        function showLoading() {
+            hideAllViews();
+            loadingView.style.display = 'block';
+        }
 
-                    if (sessionError) {
-                        showError('Invalid or expired invitation link.');
-                        return;
-                    }
-
-                    // Session set successfully, show password form
-                    formView.style.display = 'block';
-                } catch (e) {
-                    showError('Failed to process invitation link.');
-                }
-            } else {
-                // Check if user is already logged in (page refresh)
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session) {
-                    formView.style.display = 'block';
-                } else {
-                    // No token and no session - invalid access
-                    showError('No valid invitation found. Please use the link from your invitation email.');
-                }
+        function showForm(email) {
+            hideAllViews();
+            formView.style.display = 'block';
+            if (email) {
+                currentUserEmail = email;
+                emailDisplay.textContent = email;
+                userEmailDiv.style.display = 'block';
             }
         }
 
+        function showSuccess() {
+            hideAllViews();
+            successView.style.display = 'block';
+        }
+
         function showError(message) {
-            formView.style.display = 'none';
-            successView.style.display = 'none';
+            hideAllViews();
             errorView.style.display = 'block';
-            errorView.querySelector('p').textContent = message;
+            errorViewText.textContent = message || 'This invitation link is invalid or has expired. Please contact your administrator for a new invitation.';
         }
 
         function showFormError(message) {
@@ -429,12 +445,95 @@
             errorMessage.className = 'message';
         }
 
+        // Initialize on page load
+        async function init() {
+            console.log('Initializing...');
+            console.log('URL:', window.location.href);
+            console.log('Hash:', window.location.hash);
+            
+            showLoading();
+
+            // Parse URL parameters
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            const queryParams = new URLSearchParams(window.location.search);
+            
+            // Log all parameters for debugging
+            console.log('Hash params:', Object.fromEntries(hashParams));
+            console.log('Query params:', Object.fromEntries(queryParams));
+
+            // Check for error in URL
+            const urlError = hashParams.get('error') || queryParams.get('error');
+            const urlErrorDesc = hashParams.get('error_description') || queryParams.get('error_description');
+            
+            if (urlError) {
+                console.error('URL Error:', urlError, urlErrorDesc);
+                showError(urlErrorDesc || urlError);
+                return;
+            }
+
+            // Check for access token (invitation flow puts tokens in hash)
+            const accessToken = hashParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token');
+            const tokenType = hashParams.get('type');
+
+            console.log('Token type:', tokenType);
+            console.log('Has access token:', !!accessToken);
+            console.log('Has refresh token:', !!refreshToken);
+
+            if (accessToken && refreshToken) {
+                try {
+                    console.log('Setting session with tokens...');
+                    const { data, error: sessionError } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken
+                    });
+
+                    if (sessionError) {
+                        console.error('Session error:', sessionError);
+                        showError('Failed to process invitation: ' + sessionError.message);
+                        return;
+                    }
+
+                    console.log('Session set successfully:', data);
+                    
+                    if (data.user) {
+                        showForm(data.user.email);
+                    } else {
+                        showForm();
+                    }
+                } catch (e) {
+                    console.error('Exception setting session:', e);
+                    showError('An error occurred while processing your invitation.');
+                }
+            } else {
+                // No tokens in URL - check if there's an existing session
+                console.log('No tokens in URL, checking existing session...');
+                
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                
+                if (sessionError) {
+                    console.error('Get session error:', sessionError);
+                }
+                
+                console.log('Existing session:', session);
+                
+                if (session && session.user) {
+                    showForm(session.user.email);
+                } else {
+                    showError('No valid invitation found. Please use the link from your invitation email.');
+                }
+            }
+        }
+
+        // Handle form submission
         passwordForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             clearFormError();
 
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
+
+            console.log('Form submitted');
 
             // Validation
             if (password.length < 8) {
@@ -452,30 +551,37 @@
             submitBtn.innerHTML = '<span class="loading"></span>Creating Account...';
 
             try {
+                console.log('Updating user password...');
+                
                 // Update the user's password
                 const { data, error } = await supabase.auth.updateUser({
                     password: password
                 });
 
+                console.log('Update result:', { data, error });
+
                 if (error) {
                     throw error;
                 }
 
-                // Success!
-                formView.style.display = 'none';
-                successView.style.display = 'block';
+                console.log('Password updated successfully');
 
                 // Sign out so they have to log in via the app
                 await supabase.auth.signOut();
+                console.log('Signed out');
+
+                // Show success
+                showSuccess();
 
             } catch (error) {
+                console.error('Password update error:', error);
                 showFormError(error.message || 'Failed to set password. Please try again.');
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = 'Create Account';
             }
         });
 
-        // Initialize on page load
+        // Start initialization
         init();
     </script>
 </body>
